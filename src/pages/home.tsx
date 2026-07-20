@@ -8,15 +8,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Download, Edit2, ImageIcon } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import abstract1 from "@assets/wallpapers/abstract_1.png";
-import architecture1 from "@assets/wallpapers/architecture_1.png";
-import minimal1 from "@assets/wallpapers/minimal_1.png";
-import space1 from "@assets/wallpapers/space_1.png";
-import nature1 from "@assets/wallpapers/nature_1.png";
-import abstract2 from "@assets/wallpapers/abstract_2.png";
-import nature2 from "@assets/wallpapers/nature_2.png";
-import abstract3 from "@assets/wallpapers/abstract_3.png";
-
 const HADITHS = [
   { text: "Allah is Beautiful and loves beauty.", source: "Sahih Muslim 91" },
   { text: "The best among you is the one who learns the Quran and teaches it.", source: "Sahih Bukhari 5027" },
@@ -39,17 +30,6 @@ const DHIKR = [
   "MashaAllah — what beauty He created",
   "SubhanAllah — glory be to Allah",
   "Allahu Akbar — Allah is the Greatest",
-];
-
-const PLACEHOLDERS = [
-  { id: "p1", name: "Dark Abstract Geometry", category: "Geometric Art", resolution: "3840x2160", thumbnailUrl: abstract1, viewUrl: abstract1, downloads: 1240 },
-  { id: "p2", name: "Neon City Architecture", category: "Masjids", resolution: "3840x2160", thumbnailUrl: architecture1, viewUrl: architecture1, downloads: 852 },
-  { id: "p3", name: "Minimalist Moon Eclipse", category: "Nature", resolution: "3840x2160", thumbnailUrl: minimal1, viewUrl: minimal1, downloads: 2105 },
-  { id: "p4", name: "Deep Space Nebula", category: "Nature", resolution: "3840x2160", thumbnailUrl: space1, viewUrl: space1, downloads: 4120 },
-  { id: "p5", name: "Dark Foggy Forest", category: "Nature", resolution: "3840x2160", thumbnailUrl: nature1, viewUrl: nature1, downloads: 934 },
-  { id: "p6", name: "Liquid Metal", category: "Geometric Art", resolution: "3840x2160", thumbnailUrl: abstract2, viewUrl: abstract2, downloads: 1560 },
-  { id: "p7", name: "Minimalist Mountains", category: "Nature", resolution: "3840x2160", thumbnailUrl: nature2, viewUrl: nature2, downloads: 3012 },
-  { id: "p8", name: "Glowing Fractal Waves", category: "Geometric Art", resolution: "3840x2160", thumbnailUrl: abstract3, viewUrl: abstract3, downloads: 1845 },
 ];
 
 const CATEGORIES = ["All", "Calligraphy", "Masjids", "99 Names", "Quran Verses", "Duas & Adhkar", "Geometric Art", "Nature", "Ramadan", "Eid"];
@@ -122,13 +102,9 @@ export default function Home() {
     }
   };
 
-  const wallpapers = useMemo(() => {
-    if (wpData && wpData.wallpapers.length > 0) return wpData.wallpapers;
-    let items = PLACEHOLDERS;
-    if (activeCategory !== "All") items = items.filter(i => i.category === activeCategory);
-    if (search) items = items.filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
-    return items;
-  }, [wpData, activeCategory, search]);
+  // Show only real wallpapers from the backend. Filtering/search is handled
+  // server-side (see useListWallpapers params above).
+  const wallpapers = wpData?.wallpapers ?? [];
 
   return (
     <div className="flex-1 flex flex-col">

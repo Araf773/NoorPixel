@@ -23,21 +23,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const category = typeof req.query.category === "string" ? req.query.category : undefined;
       const search = typeof req.query.search === "string" ? req.query.search : undefined;
 
-      // Build the query conditionally. neon's tagged template composes safely.
+      // Split the search into individual words so they can match in any order
+      // across name, category, and tags. Each word must appear SOMEWHERE in the
+      // combined text (fuzzy-ish, order-independent). Empty search -> no filter.
+      const words = (search ?? "")
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => w.trim())
+        .filter(Boolean);
+
+      // Every word must be found in the haystack: lower(name + category + tags).
+      // We pass the words as a text[] and require bool_and over them, so N words
+      // work without building a dynamic SQL string.
       let rows: WallpaperRow[];
-      if (category && search) {
+      if (category && words.length) {
         rows = (await sql`
           SELECT * FROM wallpapers
-          WHERE category = ${category} AND name ILIKE ${"%" + search + "%"}
+          WHERE category = ${category}
+            AND (
+              SELECT bool_and(
+                lower(name || ' ' || category || ' ' || array_to_string(tags, ' ')) LIKE '%' || word || '%'
+              )
+              FROM unnest(${words}::text[]) AS word
+            )
           ORDER BY created_at DESC
         `) as WallpaperRow[];
       } else if (category) {
         rows = (await sql`
           SELECT * FROM wallpapers WHERE category = ${category} ORDER BY created_at DESC
         `) as WallpaperRow[];
-      } else if (search) {
+      } else if (words.length) {
         rows = (await sql`
-          SELECT * FROM wallpapers WHERE name ILIKE ${"%" + search + "%"} ORDER BY created_at DESC
+          SELECT * FROM wallpapers
+          WHERE (
+            SELECT bool_and(
+              lower(name || ' ' || category || ' ' || array_to_string(tags, ' ')) LIKE '%' || word || '%'
+            )
+            FROM unnest(${words}::text[]) AS word
+          )
+          ORDER BY created_at DESC
         `) as WallpaperRow[];
       } else {
         rows = (await sql`SELECT * FROM wallpapers ORDER BY created_at DESC`) as WallpaperRow[];

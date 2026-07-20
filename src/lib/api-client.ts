@@ -183,7 +183,17 @@ export function useUploadWallpaper() {
         { method: "POST", body: form },
       );
       if (!cloudRes.ok) {
-        throw new Error("Cloudinary upload failed");
+        // Surface Cloudinary's real reason instead of a generic message. The
+        // most common causes are: file larger than the plan limit (free tier
+        // caps images at 10 MB), or an invalid/expired signature.
+        let reason = `Cloudinary rejected the upload (HTTP ${cloudRes.status})`;
+        try {
+          const errBody = await cloudRes.json();
+          if (errBody?.error?.message) reason = errBody.error.message;
+        } catch {
+          /* non-JSON error body */
+        }
+        throw new Error(reason);
       }
       const uploaded = await cloudRes.json();
 
@@ -214,6 +224,18 @@ export function useUploadWallpaper() {
       // Refresh the gallery.
       queryClient.invalidateQueries({ queryKey: getListWallpapersQueryKey() });
       return saved;
+    },
+  });
+}
+
+// Delete a wallpaper (admin-only): removes the DB row + Cloudinary asset.
+export function useDeleteWallpaper() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string }) =>
+      apiFetch<{ ok: true }>(`/api/wallpapers/${vars.id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: getListWallpapersQueryKey() });
     },
   });
 }

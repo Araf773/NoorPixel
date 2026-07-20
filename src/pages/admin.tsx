@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { useGetMe, useUploadWallpaper, useLogout, useLogin, getGetMeQueryKey } from "@workspace/api-client-react";
+import { useGetMe, useUploadWallpaper, useLogout, useLogin, useListWallpapers, useDeleteWallpaper, getGetMeQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { UploadCloud, LogOut, Loader2, Image as ImageIcon } from "lucide-react";
+import { UploadCloud, LogOut, Loader2, Image as ImageIcon, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 export default function Admin() {
@@ -22,6 +22,21 @@ export default function Admin() {
   const [tags, setTags] = useState("");
   const [occasion, setOccasion] = useState("None");
   const [tokenInput, setTokenInput] = useState("");
+
+  const deleteMutation = useDeleteWallpaper();
+  const { data: wpData, isLoading: isListLoading } = useListWallpapers({}, { query: { enabled: !!user } });
+  const wallpapers = wpData?.wallpapers ?? [];
+  const deletingId = deleteMutation.isPending ? deleteMutation.variables?.id : null;
+
+  const handleDelete = async (id: string, wpName: string) => {
+    if (!window.confirm(`Delete "${wpName}"? This cannot be undone.`)) return;
+    try {
+      await deleteMutation.mutateAsync({ id });
+      toast({ title: "Deleted", description: `"${wpName}" was removed.` });
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message || "Delete failed", variant: "destructive" });
+    }
+  };
 
   useEffect(() => {
     if (file) {
@@ -202,6 +217,37 @@ export default function Admin() {
             </Button>
           </div>
         </form>
+
+        {/* Manage / delete existing wallpapers */}
+        <div className="mt-12">
+          <h2 className="text-lg font-semibold text-white mb-4">Manage Wallpapers</h2>
+          {isListLoading ? (
+            <div className="flex items-center gap-2 text-white/50 text-sm"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+          ) : wallpapers.length === 0 ? (
+            <p className="text-white/40 text-sm">No wallpapers uploaded yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {wallpapers.map(wp => (
+                <div key={wp.id} className="flex items-center gap-3 bg-card border border-white/8 rounded-xl p-3">
+                  <img src={wp.thumbnailUrl} alt={wp.name} className="h-12 w-12 rounded-lg object-cover shrink-0 bg-black/40" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-white text-sm font-medium truncate">{wp.name}</p>
+                    <p className="text-white/40 text-xs truncate">{wp.category} · {wp.downloads} downloads</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="border-white/10 bg-white/5 text-red-400 hover:bg-red-500/10 hover:text-red-300 shrink-0"
+                    disabled={deletingId === wp.id}
+                    onClick={() => handleDelete(wp.id, wp.name)}
+                  >
+                    {deletingId === wp.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

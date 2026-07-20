@@ -12,26 +12,6 @@ import { Loader2, Download, ArrowLeft, FlipHorizontal, FlipVertical, RotateCcw, 
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-import abstract1 from "@assets/wallpapers/abstract_1.png";
-import architecture1 from "@assets/wallpapers/architecture_1.png";
-import minimal1 from "@assets/wallpapers/minimal_1.png";
-import space1 from "@assets/wallpapers/space_1.png";
-import nature1 from "@assets/wallpapers/nature_1.png";
-import abstract2 from "@assets/wallpapers/abstract_2.png";
-import nature2 from "@assets/wallpapers/nature_2.png";
-import abstract3 from "@assets/wallpapers/abstract_3.png";
-
-const PLACEHOLDERS: Record<string, any> = {
-  "p1": { id: "p1", name: "Dark Abstract Geometry", category: "Geometric Art", resolution: "3840x2160", viewUrl: abstract1 },
-  "p2": { id: "p2", name: "Neon City Architecture", category: "Masjids", resolution: "3840x2160", viewUrl: architecture1 },
-  "p3": { id: "p3", name: "Minimalist Moon Eclipse", category: "Nature", resolution: "3840x2160", viewUrl: minimal1 },
-  "p4": { id: "p4", name: "Deep Space Nebula", category: "Nature", resolution: "3840x2160", viewUrl: space1 },
-  "p5": { id: "p5", name: "Dark Foggy Forest", category: "Nature", resolution: "3840x2160", viewUrl: nature1 },
-  "p6": { id: "p6", name: "Liquid Metal", category: "Geometric Art", resolution: "3840x2160", viewUrl: abstract2 },
-  "p7": { id: "p7", name: "Minimalist Mountains", category: "Nature", resolution: "3840x2160", viewUrl: nature2 },
-  "p8": { id: "p8", name: "Glowing Fractal Waves", category: "Geometric Art", resolution: "3840x2160", viewUrl: abstract3 },
-};
-
 const HADITHS = [
   { text: "Allah is Beautiful and loves beauty.", source: "Sahih Muslim 91" },
   { text: "The best among you is the one who learns the Quran and teaches it.", source: "Sahih Bukhari 5027" },
@@ -73,12 +53,11 @@ export default function Editor() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  const isPlaceholder = id?.startsWith("p");
   const { data: serverWp, isLoading } = useGetWallpaper(id, {
-    query: { enabled: !!id && !isPlaceholder, queryKey: getGetWallpaperQueryKey(id) },
+    query: { enabled: !!id, queryKey: getGetWallpaperQueryKey(id) },
   });
   const incrementDownloads = useIncrementDownloads();
-  const wallpaper = isPlaceholder ? PLACEHOLDERS[id] : serverWp;
+  const wallpaper = serverWp;
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
@@ -186,7 +165,7 @@ export default function Editor() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        if (!isPlaceholder) await incrementDownloads.mutateAsync({ id: wallpaper.id });
+        await incrementDownloads.mutateAsync({ id: wallpaper.id });
         setIsProcessing(false);
         setShowThankYou(true);
       }, format, 1.0);
@@ -217,20 +196,20 @@ export default function Editor() {
   return (
     <>
       <div className="flex-1 flex flex-col h-[calc(100dvh-4rem)] overflow-hidden">
-        {/* Header */}
-        <div className="h-16 border-b border-white/8 flex items-center justify-between px-4 bg-background/95 shrink-0">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => setLocation("/")} className="text-white hover:bg-white/10">
+        {/* Header: single row on desktop, stacked (title, then controls) on mobile */}
+        <div className="border-b border-white/8 flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 py-3 md:h-16 md:py-0 bg-background/95 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <Button variant="ghost" size="icon" onClick={() => setLocation("/")} className="text-white hover:bg-white/10 shrink-0">
               <ArrowLeft className="h-5 w-5" />
             </Button>
-            <div>
-              <h2 className="text-base font-semibold text-white tracking-tight leading-none">
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold text-white tracking-tight leading-tight truncate">
                 ☽ {wallpaper.name}
               </h2>
-              <p className="text-xs text-white/50">{wallpaper.resolution} · {wallpaper.category}</p>
+              <p className="text-xs text-white/50 truncate">{wallpaper.resolution} · {wallpaper.category}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             <Select value={format} onValueChange={setFormat}>
               <SelectTrigger className="w-[100px] h-9 bg-white/5 border-white/10 text-white">
                 <SelectValue placeholder="Format" />
@@ -242,7 +221,7 @@ export default function Editor() {
               </SelectContent>
             </Select>
             <Button
-              className="bg-primary hover:bg-primary/90 text-white shadow-[0_0_14px_rgba(108,99,255,0.3)] gap-2 h-9 px-5"
+              className="flex-1 md:flex-none bg-primary hover:bg-primary/90 text-white shadow-[0_0_14px_rgba(108,99,255,0.3)] gap-2 h-9 px-5"
               onClick={handleDownload}
               disabled={isProcessing}
             >
@@ -252,19 +231,17 @@ export default function Editor() {
           </div>
         </div>
 
-        {/* Workspace */}
-        <div className="flex-1 flex overflow-hidden">
-          <div className="flex-1 bg-black/50 relative overflow-hidden flex items-center justify-center p-8">
-            <div className="relative max-w-full max-h-full rounded-xl overflow-hidden shadow-2xl border border-white/10">
-              <canvas
-                ref={canvasRef}
-                className="max-w-full max-h-full object-contain"
-              />
-            </div>
+        {/* Workspace: stacked on mobile (image on top, controls below), side-by-side on desktop */}
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
+          <div className="shrink-0 h-[45vh] md:h-auto md:flex-1 bg-black/50 relative overflow-hidden flex items-center justify-center p-4 md:p-8">
+            <canvas
+              ref={canvasRef}
+              className="block max-w-full max-h-full w-auto h-auto object-contain rounded-xl shadow-2xl border border-white/10"
+            />
           </div>
 
-          {/* Sidebar */}
-          <div className="w-80 bg-card border-l border-white/8 flex flex-col shrink-0">
+          {/* Controls: full width below the image on mobile, fixed sidebar on desktop */}
+          <div className="flex-1 min-h-0 w-full md:flex-none md:w-80 bg-card border-t md:border-t-0 md:border-l border-white/8 flex flex-col">
             <Tabs defaultValue="adjust" className="flex-1 flex flex-col w-full">
               <TabsList className="w-full justify-start h-12 rounded-none border-b border-white/8 bg-transparent p-0">
                 <TabsTrigger value="adjust" className="flex-1 rounded-none data-[state=active]:bg-white/5 data-[state=active]:border-b-2 data-[state=active]:border-primary h-full text-xs">

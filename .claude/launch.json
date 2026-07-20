@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "noorpixel",
+      "cwd": "D:\\NP",
+      "command": "npm run dev",
+      "url": "http://localhost:5173"
+    }
+  ]
+}

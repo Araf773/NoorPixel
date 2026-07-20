@@ -32,6 +32,14 @@ export default defineConfig({
     strictPort: false,
     host: "0.0.0.0",
     allowedHosts: true,
+    // Proxy API calls to the local dev API server (dev-api-server.mts), which
+    // runs the real /api handlers. Only used in dev; Vercel serves /api itself.
+    proxy: {
+      "/api": {
+        target: `http://localhost:${Number(process.env.API_PORT) || 3001}`,
+        changeOrigin: true,
+      },
+    },
   },
   preview: {
     port,

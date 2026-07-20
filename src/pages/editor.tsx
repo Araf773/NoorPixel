@@ -100,84 +100,80 @@ export default function Editor() {
     img.src = wallpaper.viewUrl;
   }, [wallpaper]);
 
-  const renderCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
+  // Single source of truth for rendering: used by both the live preview and
+  // the export, so what you see is exactly what you download. All adjustments
+  // are baked into the canvas pixels here (nothing relies on CSS filters),
+  // which is why exposure/temperature/vignette now show up in the preview.
+  const paintCanvas = useCallback((canvas: HTMLCanvasElement, includeWatermark: boolean) => {
     const img = imageRef.current;
     if (!canvas || !img) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
     const isRotated = transform.rotate % 180 !== 0;
     canvas.width  = isRotated ? img.naturalHeight : img.naturalWidth;
     canvas.height = isRotated ? img.naturalWidth  : img.naturalHeight;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Base draw with the CSS-style filters (brightness/contrast/saturation/hue/blur).
     ctx.save();
+    ctx.filter = `brightness(${adjustments.brightness}%) contrast(${adjustments.contrast}%) saturate(${adjustments.saturation}%) hue-rotate(${adjustments.hueRotate}deg) blur(${adjustments.blur}px)`;
     ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.rotate((transform.rotate * Math.PI) / 180);
     ctx.scale(transform.flipH ? -1 : 1, transform.flipV ? -1 : 1);
     ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
     ctx.restore();
-  }, [transform]);
+    ctx.filter = "none";
+
+    // Exposure + temperature pixel pass.
+    if (adjustments.exposure !== 100 || adjustments.temperature !== 100) {
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      const expFactor = adjustments.exposure / 100;
+      const rFactor = adjustments.temperature > 100 ? 1 + ((adjustments.temperature - 100) / 100) : 1;
+      const bFactor = adjustments.temperature < 100 ? 1 + ((100 - adjustments.temperature) / 100) : 1;
+      for (let i = 0; i < data.length; i += 4) {
+        data[i]   = Math.min(255, data[i]   * expFactor * rFactor);
+        data[i+1] = Math.min(255, data[i+1] * expFactor);
+        data[i+2] = Math.min(255, data[i+2] * expFactor * bFactor);
+      }
+      ctx.putImageData(imageData, 0, 0);
+    }
+
+    // Vignette.
+    if (adjustments.vignette > 0) {
+      const gradient = ctx.createRadialGradient(
+        canvas.width / 2, canvas.height / 2, canvas.width * 0.3,
+        canvas.width / 2, canvas.height / 2, canvas.width * 0.7
+      );
+      gradient.addColorStop(0, "transparent");
+      gradient.addColorStop(1, `rgba(0,0,0,${(adjustments.vignette / 100) * 0.85})`);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Watermark.
+    if (includeWatermark) {
+      ctx.font = "bold 18px Inter, sans-serif";
+      ctx.fillStyle = "rgba(255,255,255,0.35)";
+      ctx.textAlign = "right";
+      ctx.fillText("NoorPixel", canvas.width - 16, canvas.height - 16);
+    }
+  }, [adjustments, transform, watermark]);
+
+  const renderCanvas = useCallback(() => {
+    if (canvasRef.current) paintCanvas(canvasRef.current, watermark);
+  }, [paintCanvas, watermark]);
 
   useEffect(() => { renderCanvas(); }, [renderCanvas]);
-
-  const getCssFilter = () => {
-    const { brightness, contrast, saturation, hueRotate, blur } = adjustments;
-    return `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%) hue-rotate(${hueRotate}deg) blur(${blur}px)`;
-  };
 
   const handleDownload = async () => {
     if (!canvasRef.current || !imageRef.current || !wallpaper) return;
     setIsProcessing(true);
     try {
       const exportCanvas = document.createElement("canvas");
-      const ctx = exportCanvas.getContext("2d");
-      if (!ctx) throw new Error("Could not get 2d context");
-      const img = imageRef.current;
-      const isRotated = transform.rotate % 180 !== 0;
-      exportCanvas.width  = isRotated ? img.naturalHeight : img.naturalWidth;
-      exportCanvas.height = isRotated ? img.naturalWidth  : img.naturalHeight;
-
-      ctx.filter = `brightness(${adjustments.brightness}%) contrast(${adjustments.contrast}%) saturate(${adjustments.saturation}%) hue-rotate(${adjustments.hueRotate}deg) blur(${adjustments.blur}px)`;
-      ctx.translate(exportCanvas.width / 2, exportCanvas.height / 2);
-      ctx.rotate((transform.rotate * Math.PI) / 180);
-      ctx.scale(transform.flipH ? -1 : 1, transform.flipV ? -1 : 1);
-      ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
-      ctx.filter = "none";
-
-      // Exposure + temperature pixel pass
-      if (adjustments.exposure !== 100 || adjustments.temperature !== 100) {
-        const imageData = ctx.getImageData(0, 0, exportCanvas.width, exportCanvas.height);
-        const data = imageData.data;
-        const expFactor = adjustments.exposure / 100;
-        const rFactor = adjustments.temperature > 100 ? 1 + ((adjustments.temperature - 100) / 100) : 1;
-        const bFactor = adjustments.temperature < 100 ? 1 + ((100 - adjustments.temperature) / 100) : 1;
-        for (let i = 0; i < data.length; i += 4) {
-          data[i]   = Math.min(255, data[i]   * expFactor * rFactor);
-          data[i+1] = Math.min(255, data[i+1] * expFactor);
-          data[i+2] = Math.min(255, data[i+2] * expFactor * bFactor);
-        }
-        ctx.putImageData(imageData, 0, 0);
-      }
-
-      // Vignette
-      if (adjustments.vignette > 0) {
-        const gradient = ctx.createRadialGradient(
-          exportCanvas.width / 2, exportCanvas.height / 2, exportCanvas.width * 0.3,
-          exportCanvas.width / 2, exportCanvas.height / 2, exportCanvas.width * 0.7
-        );
-        gradient.addColorStop(0, "transparent");
-        gradient.addColorStop(1, `rgba(0,0,0,${(adjustments.vignette / 100) * 0.85})`);
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-      }
-
-      // Watermark
-      if (watermark) {
-        ctx.font = "bold 18px Inter, sans-serif";
-        ctx.fillStyle = "rgba(255,255,255,0.35)";
-        ctx.textAlign = "right";
-        ctx.fillText("NoorPixel", exportCanvas.width - 16, exportCanvas.height - 16);
-      }
+      // Render through the same pipeline as the preview so the download matches.
+      paintCanvas(exportCanvas, watermark);
 
       exportCanvas.toBlob(async (blob) => {
         if (!blob) throw new Error("Could not generate blob");
@@ -263,7 +259,6 @@ export default function Editor() {
               <canvas
                 ref={canvasRef}
                 className="max-w-full max-h-full object-contain"
-                style={{ filter: getCssFilter() }}
               />
             </div>
           </div>
